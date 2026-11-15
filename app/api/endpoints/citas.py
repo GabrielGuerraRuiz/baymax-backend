@@ -8,8 +8,12 @@ from app.core.security import obtener_usuario_actual, requerir_doctor
 from app.models.usuario import Usuario, Doctor
 from app.models.cita import Disponibilidad, Cita
 from app.schemas.cita import (
-    DisponibilidadCreate, DisponibilidadResponse,
-    AgendarCitaRequest, CitaResponse
+    ActualizarEstadoCitaRequest,
+    AgendarCitaRequest,
+    CitaResponse,
+    DisponibilidadCreate,
+    DisponibilidadResponse,
+    ReprogramarCitaRequest,
 )
 from app.services.cita_service import CitaService
 
@@ -62,4 +66,44 @@ def listar_mis_citas(
     db: Session = Depends(get_db)
 ):
     return db.query(Cita).filter(Cita.agendada_por == usuario.id).all()
+@router.get("/agenda-doctor", response_model=List[CitaResponse])
+def ver_agenda_doctor(
+    doctor: Usuario = Depends(requerir_doctor),
+    db: Session = Depends(get_db),
+):
+    return (
+        db.query(Cita)
+        .filter(Cita.doctor_id == doctor.id)
+        .order_by(Cita.fecha_hora.asc())
+        .all()
+    )
+
+
+@router.patch("/{cita_id}/reprogramar", response_model=CitaResponse)
+def reprogramar_cita(
+    cita_id: UUID,
+    datos: ReprogramarCitaRequest,
+    usuario: Usuario = Depends(obtener_usuario_actual),
+    db: Session = Depends(get_db),
+):
+    return CitaService.reprogramar_cita(db, usuario, cita_id, datos)
+
+
+@router.patch("/{cita_id}/cancelar", response_model=CitaResponse)
+def cancelar_cita(
+    cita_id: UUID,
+    usuario: Usuario = Depends(obtener_usuario_actual),
+    db: Session = Depends(get_db),
+):
+    return CitaService.cancelar_cita(db, usuario, cita_id)
+
+
+@router.patch("/{cita_id}/asistencia", response_model=CitaResponse)
+def marcar_asistencia(
+    cita_id: UUID,
+    datos: ActualizarEstadoCitaRequest,
+    doctor: Usuario = Depends(requerir_doctor),
+    db: Session = Depends(get_db),
+):
+    return CitaService.registrar_asistencia_doctor(db, doctor.id, cita_id, datos.estado)
 

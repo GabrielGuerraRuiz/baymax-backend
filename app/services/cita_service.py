@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from app.models.usuario import Usuario, Doctor, Paciente, RolUsuario
 from app.models.cita import Disponibilidad, Cita, EstadoCita
-from app.schemas.cita import DisponibilidadCreate, AgendarCitaRequest
+from app.schemas.cita import DisponibilidadCreate, AgendarCitaRequest, ReprogramarCitaRequest
 
 class CitaService:
     @staticmethod
@@ -140,3 +140,88 @@ class CitaService:
         db.commit()
         db.refresh(nueva_cita)
         return nueva_cita
+    @staticmethod
+    def cancelar_cita(db: Session, solicitante: Usuario, cita_id: UUID) -> Cita:
+        cita = db.query(Cita).filter(Cita.id == cita_id).first()
+        if not cita:
+            raise HTTPException(status_code=404, detail="Cita no encontrada.")
+
+        # Validar que quien cancela sea quien agendó o el doctor asignado
+        if cita.agendada_por != solicitante.id and cita.doctor_id != solicitante.id:
+            raise HTTPException(status_code=403, detail="No tienes permiso para cancelar esta cita.")
+
+        if cita.estado in [EstadoCita.CANCELADA, EstadoCita.ATENDIDA, EstadoCita.NO_ASISTIO]:
+            raise HTTPException(status_code=400, detail=f"No se puede cancelar una cita en estado {cita.estado}.")
+
+        # RN-04: Verificar si faltan menos de 24 horas para marcar cancelación tardía
+        ahora = datetime.now()
+        if cita.fecha_hora - ahora < timedelta(hours=24):
+            cita.cancelacion_tardia = True
+
+        cita.estado = EstadoCita.CANCELADA
+        db.commit()
+        db.refresh(cita)
+        return cita
+
+    @staticmethod
+    def reprogramar_cita(
+        db: Session, solicitante: Usuario, cita_id: UUID, datos: ReprogramarCitaRequest
+    ) -> Cita:
+        cita = db.query(Cita).filter(Cita.id == cita_id).first()
+        if not cita:
+            raise HTTPException(status_code=404, detail="Cita no encontrada.")
+
+        if cita.agendada_por != solicitante.id:
+            raise HTTPException(status_code=403, detail="Solo quien agendó la cita puede reprogramarla.")
+
+        if cita.estado in [EstadoCita.CANCELADA, EstadoCita.ATENDIDA, EstadoCita.NO_ASISTIO]:
+            raise HTTPException(status_code=400, detail=f"No se puede reprogramar una cita en estado {cita.estado}.")
+
+        nueva_fecha = datos.nueva_fecha_hora.replace(tzinfo=None)
+
+        # Verificar que el nuevo slot esté libre para el doctor y el paciente
+        slots_libres = CitaService.calcular_horarios_libres(
+            db, cita.doctor_id, nueva_fecha.date(), cita.paciente_id
+        )
+        hora_str = nueva_fecha.strftime("%H:%M")
+        if hora_str not in slots_libres:
+            raise HTTPException(
+                status_code=400,
+                detail=f"El nuevo horario {hora_str} no está disponible."
+            )
+
+        ahora = datetime.now()
+        if cita.fecha_hora - ahora < timedelta(hours=24):
+            cita.cancelacion_tardia = True
+
+        cita.fecha_hora = nueva_fecha
+        cita.estado = EstadoCita.REPROGRAMADA
+        if datos.motivo:
+            cita.motivo = datos.motivo
+
+        db.commit()
+        db.refresh(cita)
+        return cita
+
+    @staticmethod
+    def registrar_asistencia_doctor(
+        db: Session, doctor_id: UUID, cita_id: UUID, nuevo_estado: EstadoCita
+    ) -> Cita:
+        if nuevo_estado not in [EstadoCita.ATENDIDA, EstadoCita.NO_ASISTIO]:
+            raise HTTPException(
+                status_code=400,
+                detail="El doctor solo puede marcar la cita como ATENDIDA o NO_ASISTIO."
+            )
+
+        cita = db.query(Cita).filter(Cita.id == cita_id, Cita.doctor_id == doctor_id).first()
+        if not cita:
+            raise HTTPException(status_code=404, detail="Cita no encontrada en tu agenda médica.")
+
+        if cita.estado == EstadoCita.CANCELADA:
+            raise HTTPException(status_code=400, detail="No se puede pasar asistencia a una cita cancelada.")
+
+        cita.estado = nuevo_estado
+        cita.asistencia_confirmada = (nuevo_estado == EstadoCita.ATENDIDA)
+        db.commit()
+        db.refresh(cita)
+        return cita

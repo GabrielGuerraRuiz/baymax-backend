@@ -4,6 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, model_validator
 from app.models.cita import EstadoCita
 
+
 class DisponibilidadCreate(BaseModel):
     dia_semana: int = Field(..., ge=0, le=6, description="0=Lunes, 1=Martes, ..., 6=Domingo")
     hora_inicio: time
@@ -40,3 +41,10 @@ class CitaResponse(BaseModel):
 
     class Config:
         from_attributes = True
+class ReprogramarCitaRequest(BaseModel):
+    nueva_fecha_hora: datetime
+    motivo: Optional[str] = Field(None, max_length=255)
+
+
+class ActualizarEstadoCitaRequest(BaseModel):
+    estado: EstadoCita = Field(..., description="Valores permitidos: ATENDIDA o NO_ASISTIO")
