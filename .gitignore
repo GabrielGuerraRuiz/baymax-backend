@@ -1,0 +1,15 @@
+# Entorno virtual
+baymax_env/
+venv/
+env/
+
+# Variables de entorno y contraseñas (RNF-15)
+.env
+
+# Archivos compilados de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Configuraciones locales del editor
+.vscode/
