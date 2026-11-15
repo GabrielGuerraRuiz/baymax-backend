@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from app.models.usuario import Usuario, Doctor, Paciente, RolUsuario
+from app.models.usuario import Usuario, Doctor, Paciente, RolUsuario, VinculoTutor
 from app.models.cita import Disponibilidad, Cita, EstadoCita
 from app.schemas.cita import DisponibilidadCreate, AgendarCitaRequest, ReprogramarCitaRequest
 
@@ -101,10 +101,23 @@ class CitaService:
         elif solicitante.rol == RolUsuario.TUTOR:
             if not datos.paciente_id:
                 raise HTTPException(status_code=400, detail="Como tutor debes indicar el paciente_id del dependiente.")
+            vinculo = (
+                db.query(VinculoTutor)
+                .filter(
+                    VinculoTutor.tutor_id == solicitante.id,
+                    VinculoTutor.paciente_id == datos.paciente_id,
+                    VinculoTutor.activo.is_(True),
+                )
+                .first()
+            )
+            if not vinculo:
+                raise HTTPException(
+                    status_code=403,
+                    detail="No tienes un vínculo activo autorizado para agendar citas a este paciente.",
+                )
             paciente = db.query(Paciente).filter(Paciente.id == datos.paciente_id).first()
             if not paciente:
                 raise HTTPException(status_code=404, detail="Dependiente no encontrado.")
-            # Nota: La validación estricta de VinculoTutor activo la conectaremos en el Sprint 2
         else:
             raise HTTPException(status_code=403, detail="Los doctores no agendan citas desde este flujo.")
 

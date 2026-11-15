@@ -82,3 +82,10 @@ def requerir_doctor(usuario: Usuario = Depends(obtener_usuario_actual)) -> Usuar
             detail="Acceso exclusivo para doctores",
         )
     return usuario
+def requerir_tutor(usuario: Usuario = Depends(obtener_usuario_actual)) -> Usuario:
+    if usuario.rol != RolUsuario.TUTOR:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acceso exclusivo para tutores registrados",
+        )
+    return usuario
