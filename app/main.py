@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.endpoints import auth, citas, clinico, tutores
+from app.api.endpoints import asistente, auth, citas, clinico, tutores
 from app.core.database import Base, engine
 from app.models import cita, clinico as clinico_models, usuario
 
@@ -25,6 +25,7 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(citas.router, prefix="/api/v1")
 app.include_router(tutores.router, prefix="/api/v1")
 app.include_router(clinico.router, prefix="/api/v1")
+app.include_router(asistente.router, prefix="/api/v1")
 
 
 @app.get("/")
