@@ -1,15 +1,16 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.core.database import engine, Base
-from app.models import usuario, cita  # Crea tablas de usuarios, disponibilidades y citas
-from app.api.endpoints import auth, citas, tutores
+
+from app.api.endpoints import auth, citas, clinico, tutores
+from app.core.database import Base, engine
+from app.models import cita, clinico as clinico_models, usuario
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Baymax API",
     description="Plataforma web de gestión de citas médicas y estudios clínicos",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 app.add_middleware(
@@ -23,6 +24,8 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(citas.router, prefix="/api/v1")
 app.include_router(tutores.router, prefix="/api/v1")
+app.include_router(clinico.router, prefix="/api/v1")
+
 
 @app.get("/")
 def health_check():
